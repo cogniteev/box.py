@@ -493,7 +493,7 @@ class BoxClient(object):
         """
         self._request("delete", 'files/{0}/trash'.format(file_id))
 
-    def download_file(self, file_id, version=None):
+    def download_file(self, file_id, version=None, **kwargs):
         """
         Downloads a file
 
@@ -509,7 +509,7 @@ class BoxClient(object):
         if version:
             params['version'] = version
 
-        return self._request("get", 'files/{0}/content'.format(file_id), params=params, stream=True)
+        return self._request("get", 'files/{0}/content'.format(file_id), params=params, stream=True, **kwargs)
 
     def get_thumbnail(self, file_id, extension="png", min_height=None, max_height=None, min_width=None, max_width=None, max_wait=0):
         """
