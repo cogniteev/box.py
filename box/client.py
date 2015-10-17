@@ -266,7 +266,8 @@ class BoxClient(object):
     def _check_for_errors(self, response):
         if not response.ok:
             exception = EXCEPTION_MAP.get(response.status_code, BoxClientException)
-            raise exception(response.status_code, response.text)
+            raise exception(response.status_code, response.text,
+                            response=response)
 
     @property
     def default_headers(self):
@@ -757,7 +758,6 @@ class BoxClientException(Exception):
     def __init__(self, status_code, message=None, **kwargs):
         super(BoxClientException, self).__init__(message)
         self.status_code = status_code
-        self.message = message
         self.__dict__.update(kwargs)
 
 
