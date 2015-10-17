@@ -45,11 +45,11 @@ def start_authenticate_v1(api_key):
 
     r = requests.get('https://www.box.com/api/1.0/rest?action=get_ticket&api_key=%s' % api_key)
     if not r.ok:
-        raise BoxAuthenticationException(r.status_code, r.text)
+        raise BoxAuthenticationException(r)
 
     content = objectify.fromstring(str(r.text))
     if content.status != 'get_ticket_ok':
-        raise BoxAuthenticationException(r.status_code, content.status.text)
+        raise BoxAuthenticationException(r, message=content.status.text)
 
     return 'https://www.box.com/api/1.0/auth/%s' % content.ticket
 
@@ -79,11 +79,11 @@ def finish_authenticate_v1(api_key, ticket):
                                                                  'api_key': api_key,
                                                                  'ticket': ticket})
     if not r.ok:
-        raise BoxAuthenticationException(r.status_code, r.text)
+        raise BoxAuthenticationException(r)
 
     content = objectify.fromstring(str(r.text))
     if content.status != 'get_auth_token_ok':
-        raise BoxAuthenticationException(r.status_code, content.status.text)
+        raise BoxAuthenticationException(r, message=content.status.text)
 
     return {
         'token': content.auth_token.text,
@@ -181,7 +181,7 @@ def _oauth2_token_request(client_id, client_secret, grant_type, **kwargs):
 def _handle_auth_response(response):
     result = response.json()
     if 'error' in result:
-        raise BoxAuthenticationException(response.status_code, message=result.get('error_description'), error=result['error'])
+        raise BoxAuthenticationException(response, message=result.get('error_description'), error=result['error'])
     return result
 
 
@@ -266,8 +266,7 @@ class BoxClient(object):
     def _check_for_errors(self, response):
         if not response.ok:
             exception = EXCEPTION_MAP.get(response.status_code, BoxClientException)
-            raise exception(response.status_code, response.text,
-                            response=response)
+            raise exception(response)
 
     @property
     def default_headers(self):
@@ -755,10 +754,24 @@ class BoxClient(object):
 
 
 class BoxClientException(Exception):
-    def __init__(self, status_code, message=None, **kwargs):
-        super(BoxClientException, self).__init__(message)
-        self.status_code = status_code
+    def __init__(self, response, message=None, **kwargs):
+        """Base Box exception class
+
+        Args:
+            - response: Response of the HTTP request that failed.
+                        type is `requests.Response`.
+            - message: (optional) override default exception message.
+                    Default is the HTTP message body.
+            - kwargs: (optional) provide exception instance additional
+                      attributes.
+        """
+        super(BoxClientException, self).__init__(message or response.text)
+        self.response = response
         self.__dict__.update(kwargs)
+
+    @property
+    def status_code(self):
+        return self.response.status_code
 
 
 class ItemAlreadyExists(BoxClientException):
