@@ -4,5 +4,12 @@ from .client import BoxClient, \
     CredentialsV1, CredentialsV2
 
 from .client import EventFilter, EventType, ShareAccess
-from .client import BoxClientException, BoxAccountUnauthorized, BoxAuthenticationException, PreconditionFailed, \
-    ItemDoesNotExist, ItemAlreadyExists
+from .client import (
+    BoxAccountUnauthorized,
+    BoxAuthenticationException,
+    BoxClientException,
+    BoxRateLimitExceeded,
+    ItemAlreadyExists,
+    ItemDoesNotExist,
+    PreconditionFailed,
+)

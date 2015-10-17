@@ -794,9 +794,28 @@ class BoxAccountUnauthorized(BoxClientException):
     pass
 
 
+class BoxRateLimitExceeded(BoxClientException):
+    @property
+    def retry_after(self):
+        """
+        Provides how long to wait before making a new request, in seconds.
+
+        Returns:
+            - Integer countdown if provided in HTTP message headers, `None`
+            otherwise (should not be the case according to the
+            Box API documentation).
+        """
+        countdown = self.response.headers.get('Retry-After')
+        if countdown:
+            return int(countdown)
+        return None
+
+
+TOO_MANY_REQUESTS = 429  # not available in `httplib` before Python 3.3
 EXCEPTION_MAP = {
     CONFLICT: ItemAlreadyExists,
     NOT_FOUND: ItemDoesNotExist,
     PRECONDITION_FAILED: PreconditionFailed,
-    UNAUTHORIZED: BoxAccountUnauthorized
+    UNAUTHORIZED: BoxAccountUnauthorized,
+    TOO_MANY_REQUESTS: BoxRateLimitExceeded,
 }
