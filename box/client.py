@@ -45,11 +45,11 @@ def start_authenticate_v1(api_key):
 
     r = requests.get('https://www.box.com/api/1.0/rest?action=get_ticket&api_key=%s' % api_key)
     if not r.ok:
-        raise BoxAuthenticationException(r.status_code, r.text)
+        raise BoxAuthenticationException(r)
 
     content = objectify.fromstring(str(r.text))
     if content.status != 'get_ticket_ok':
-        raise BoxAuthenticationException(r.status_code, content.status.text)
+        raise BoxAuthenticationException(r, message=content.status.text)
 
     return 'https://www.box.com/api/1.0/auth/%s' % content.ticket
 
@@ -79,11 +79,11 @@ def finish_authenticate_v1(api_key, ticket):
                                                                  'api_key': api_key,
                                                                  'ticket': ticket})
     if not r.ok:
-        raise BoxAuthenticationException(r.status_code, r.text)
+        raise BoxAuthenticationException(r)
 
     content = objectify.fromstring(str(r.text))
     if content.status != 'get_auth_token_ok':
-        raise BoxAuthenticationException(r.status_code, content.status.text)
+        raise BoxAuthenticationException(r, message=content.status.text)
 
     user_dict = {}
 
@@ -186,7 +186,7 @@ def _oauth2_token_request(client_id, client_secret, grant_type, **kwargs):
 def _handle_auth_response(response):
     result = response.json()
     if 'error' in result:
-        raise BoxAuthenticationException(response.status_code, message=result.get('error_description'), error=result['error'])
+        raise BoxAuthenticationException(response, message=result.get('error_description'), error=result['error'])
     return result
 
 
@@ -271,7 +271,7 @@ class BoxClient(object):
     def _check_for_errors(self, response):
         if not response.ok:
             exception = EXCEPTION_MAP.get(response.status_code, BoxClientException)
-            raise exception(response.status_code, response.text)
+            raise exception(response)
 
     @property
     def default_headers(self):
@@ -951,11 +951,24 @@ class BoxClient(object):
 
 
 class BoxClientException(Exception):
-    def __init__(self, status_code, message=None, **kwargs):
-        super(BoxClientException, self).__init__(message)
-        self.status_code = status_code
-        self.message = message
+    def __init__(self, response, message=None, **kwargs):
+        """Base Box exception class
+
+        Args:
+            - response: Response of the HTTP request that failed.
+                        type is `requests.Response`.
+            - message: (optional) override default exception message.
+                    Default is the HTTP message body.
+            - kwargs: (optional) provide exception instance additional
+                      attributes.
+        """
+        super(BoxClientException, self).__init__(message or response.text)
+        self.response = response
         self.__dict__.update(kwargs)
+
+    @property
+    def status_code(self):
+        return self.response.status_code
 
 
 class ItemAlreadyExists(BoxClientException):
@@ -978,9 +991,28 @@ class BoxAccountUnauthorized(BoxClientException):
     pass
 
 
+class BoxRateLimitExceeded(BoxClientException):
+    @property
+    def retry_after(self):
+        """
+        Provides how long to wait before making a new request, in seconds.
+
+        Returns:
+            - Integer countdown if provided in HTTP message headers, `None`
+            otherwise (should not be the case according to the
+            Box API documentation).
+        """
+        countdown = self.response.headers.get('Retry-After')
+        if countdown:
+            return int(countdown)
+        return None
+
+
+TOO_MANY_REQUESTS = 429  # not available in `httplib` before Python 3.3
 EXCEPTION_MAP = {
     CONFLICT: ItemAlreadyExists,
     NOT_FOUND: ItemDoesNotExist,
     PRECONDITION_FAILED: PreconditionFailed,
-    UNAUTHORIZED: BoxAccountUnauthorized
+    UNAUTHORIZED: BoxAccountUnauthorized,
+    TOO_MANY_REQUESTS: BoxRateLimitExceeded,
 }
